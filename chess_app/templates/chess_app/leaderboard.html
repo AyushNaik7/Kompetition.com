@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Leaderboard - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<h1>Leaderboard - {{ competition.title }}</h1>
+
+<div style="margin-bottom: 20px;">
+    <a href="{% url 'competition_detail' competition.slug %}" class="btn btn-secondary">Back to Competition</a>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Rank</th>
+            <th>Participant</th>
+            <th>Lichess Username</th>
+            <th>Matches Played</th>
+            <th>Wins</th>
+            <th>Draws</th>
+            <th>Losses</th>
+            <th>Points</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in leaderboard %}
+        <tr>
+            <td>{{ entry.rank }}</td>
+            <td>{{ entry.participant.full_name }}</td>
+            <td><a href="https://lichess.org/@/{{ entry.participant.lichess_username }}" target="_blank">{{ entry.participant.lichess_username }}</a></td>
+            <td>{{ entry.matches_played }}</td>
+            <td>{{ entry.wins }}</td>
+            <td>{{ entry.draws }}</td>
+            <td>{{ entry.losses }}</td>
+            <td><strong>{{ entry.points }}</strong></td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="8">No results yet.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="card">
+    <h3>Scoring System</h3>
+    <p>Win: 1 point | Draw: 0.5 points | Loss: 0 points</p>
+    <h3>Tie-break Rules</h3>
+    <p>1. Total points (higher is better)</p>
+    <p>2. Number of wins (higher is better)</p>
+    <p>3. Earlier registration time (earlier is better)</p>
+</div>
+{% endblock %}

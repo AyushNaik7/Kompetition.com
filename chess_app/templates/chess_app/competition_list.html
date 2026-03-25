@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Competitions{% endblock %}
+
+{% block content %}
+<h1>Chess Competitions</h1>
+
+<a href="{% url 'competition_create' %}" class="btn">Create New Competition</a>
+
+<table>
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Time Control</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Participants</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for competition in competitions %}
+        <tr>
+            <td><a href="{% url 'competition_detail' competition.slug %}">{{ competition.title }}</a></td>
+            <td>{{ competition.time_control }}</td>
+            <td>{{ competition.start_time|date:"Y-m-d H:i" }}</td>
+            <td>{{ competition.end_time|date:"Y-m-d H:i" }}</td>
+            <td>{{ competition.participant_count }} / {{ competition.max_participants }}</td>
+            <td>
+                {% if competition.is_active %}
+                <span class="badge badge-success">Active</span>
+                {% else %}
+                <span class="badge badge-secondary">Inactive</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{% url 'competition_detail' competition.slug %}" class="btn btn-secondary">View</a>
+                <a href="{% url 'participant_register' competition.slug %}" class="btn btn-success">Register</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7">No competitions found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

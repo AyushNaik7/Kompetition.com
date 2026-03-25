@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Match Detail{% endblock %}
+
+{% block content %}
+<h1>Match Detail</h1>
+
+<div class="card">
+    <h2>{{ match.player1.full_name }} vs {{ match.player2.full_name }}</h2>
+    
+    <p><strong>Competition:</strong> <a href="{% url 'competition_detail' match.competition.slug %}">{{ match.competition.title }}</a></p>
+    <p><strong>Round:</strong> {{ match.round_number }}</p>
+    <p><strong>Status:</strong> 
+        {% if match.status == 'completed' %}
+        <span class="badge badge-success">Completed</span>
+        {% elif match.status == 'active' %}
+        <span class="badge badge-warning">Active</span>
+        {% else %}
+        <span class="badge badge-secondary">{{ match.get_status_display }}</span>
+        {% endif %}
+    </p>
+    <p><strong>Result:</strong> {{ match.get_result_display }}</p>
+    {% if match.winner %}
+    <p><strong>Winner:</strong> {{ match.winner.full_name }}</p>
+    {% endif %}
+    <p><strong>Result Source:</strong> {{ match.result_source }}</p>
+    
+    {% if match.lichess_game_id %}
+    <p><strong>Lichess Game:</strong> <a href="https://lichess.org/{{ match.lichess_game_id }}" target="_blank">View on Lichess</a></p>
+    {% endif %}
+    
+    {% if match.started_at %}
+    <p><strong>Started:</strong> {{ match.started_at|date:"Y-m-d H:i" }}</p>
+    {% endif %}
+    {% if match.finished_at %}
+    <p><strong>Finished:</strong> {{ match.finished_at|date:"Y-m-d H:i" }}</p>
+    {% endif %}
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="{% url 'competition_detail' match.competition.slug %}" class="btn btn-secondary">Back to Competition</a>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h3>Sync Result from Lichess</h3>
+    <p>Use the API endpoint to sync the result:</p>
+    <code>POST /api/chess/matches/{{ match.id }}/sync-result/</code>
+    <p style="margin-top: 10px;">Or provide the game ID in the request body:</p>
+    <code>{"lichess_game_id": "dKbV8Oba"}</code>
+</div>
+{% endblock %}
