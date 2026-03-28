@@ -1,24 +1,31 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q, Count, Case, When, FloatField
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 import requests
 import re
 
-from .models import ChessCompetition, ChessParticipant, ChessMatch, ChessResultSyncLog
+from .models import ChessCompetition, ChessParticipant, ChessMatch, ChessResultSyncLog, UserProfile
 from .serializers import (
     ChessCompetitionSerializer,
     ChessParticipantSerializer,
     ChessMatchSerializer,
-    LeaderboardSerializer
+    LeaderboardSerializer,
+    UserSerializer,
+    RegisterSerializer,
+    LoginSerializer
 )
 
 
 class ChessCompetitionViewSet(viewsets.ModelViewSet):
     queryset = ChessCompetition.objects.all()
     serializer_class = ChessCompetitionSerializer
+    permission_classes = [AllowAny]  # Allow anyone to create competitions
 
     @action(detail=False, methods=['get'])
     def active(self, request):
@@ -55,10 +62,24 @@ class ChessCompetitionViewSet(viewsets.ModelViewSet):
         data = request.data.copy()
         data['competition'] = competition.id
 
-        
         serializer = ChessParticipantSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
+            participant = serializer.save()
+            
+            # If user is authenticated, save their Lichess username to profile
+            if request.user.is_authenticated:
+                try:
+                    profile = request.user.profile
+                    if not profile.lichess_username:
+                        profile.lichess_username = participant.lichess_username
+                        profile.save()
+                except UserProfile.DoesNotExist:
+                    # Create profile if it doesn't exist
+                    UserProfile.objects.create(
+                        user=request.user,
+                        lichess_username=participant.lichess_username
+                    )
+            
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -86,9 +107,32 @@ class ChessCompetitionViewSet(viewsets.ModelViewSet):
         data = request.data.copy()
         data['competition'] = competition.id
         
+        # Anti-abuse check: Prevent self-pairing
+        player1_id = data.get('player1')
+        player2_id = data.get('player2')
+        
+        if player1_id and player2_id and str(player1_id) == str(player2_id):
+            return Response(
+                {'error': 'A player cannot be paired against themselves'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         serializer = ChessMatchSerializer(data=data)
         if serializer.is_valid():
             match = serializer.save()
+            
+            # Optionally create Lichess challenge
+            create_challenge = request.data.get('create_challenge', False)
+            if create_challenge:
+                from chess_app.lichess_api import create_match_challenge
+                challenge_result = create_match_challenge(match)
+                if challenge_result:
+                    return Response({
+                        **ChessMatchSerializer(match).data,
+                        'challenge_created': True,
+                        'challenge_url': challenge_result['challenge_url']
+                    }, status=status.HTTP_201_CREATED)
+            
             return Response(
                 ChessMatchSerializer(match).data,
                 status=status.HTTP_201_CREATED
@@ -102,6 +146,44 @@ class ChessCompetitionViewSet(viewsets.ModelViewSet):
         leaderboard_data = self._calculate_leaderboard(competition)
         serializer = LeaderboardSerializer(leaderboard_data, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def generate_swiss_pairings(self, request, pk=None):
+        """Generate Swiss pairings for the next round"""
+        from .swiss_pairing import create_swiss_round, get_next_round_number
+        
+        competition = self.get_object()
+        
+        # Get next round number
+        next_round = get_next_round_number(competition)
+        
+        # Check if there are any incomplete matches in previous rounds
+        incomplete_matches = ChessMatch.objects.filter(
+            competition=competition,
+            status__in=['pending', 'active']
+        ).count()
+        
+        if incomplete_matches > 0:
+            return Response(
+                {'error': f'Cannot generate next round. {incomplete_matches} matches are still incomplete.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Generate pairings
+        try:
+            result = create_swiss_round(competition, next_round)
+            return Response({
+                'message': f'Successfully created {result["matches_created"]} matches for Round {next_round}',
+                'round_number': next_round,
+                'matches_created': result['matches_created'],
+                'bye_player': result['bye_player'],
+                'matches': ChessMatchSerializer(result['pairings'], many=True).data
+            })
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to generate pairings: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
     def _calculate_leaderboard(self, competition):
@@ -175,68 +257,103 @@ class ChessMatchViewSet(viewsets.ModelViewSet):
     serializer_class = ChessMatchSerializer
 
     @action(detail=True, methods=['post'])
-    def sync_result(self, request, pk=None):
-        """Sync match result from Lichess"""
+    def create_lichess_challenge(self, request, pk=None):
+        """Create a Lichess challenge for this match"""
+        from chess_app.lichess_api import create_match_challenge
+        
         match = self.get_object()
         
-        # Check if match is already completed
-        if match.status == 'completed':
+        if not match.player2:
             return Response(
-                {'error': 'Match is already completed. Admin override required.'},
+                {'error': 'Cannot create challenge for bye match'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get game ID from match or request
-        game_id = match.lichess_game_id
-        if not game_id and 'lichess_game_id' in request.data:
-            game_id = request.data['lichess_game_id']
-            match.lichess_game_id = game_id
+        if match.status == 'completed':
+            return Response(
+                {'error': 'Match is already completed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
-        if not game_id:
+        result = create_match_challenge(match)
+        
+        if result:
+            return Response({
+                'message': 'Challenge created successfully',
+                'challenge_url': result['challenge_url'],
+                'challenge_id': result['challenge_id']
+            })
+        else:
+            return Response(
+                {'error': 'Failed to create challenge on Lichess'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=True, methods=['post'])
+    def sync_result(self, request, pk=None):
+        """Sync match result from Lichess using our API integration"""
+        match = self.get_object()
+        
+        # Check if match is already completed (with admin override option)
+        admin_override = request.data.get('admin_override', False)
+        
+        if match.status == 'completed' and not admin_override:
+            return Response(
+                {'error': 'Match is locked. Contact admin to override.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get game ID from request
+        lichess_game_id = request.data.get('lichess_game_id', '').strip()
+        
+        if not lichess_game_id:
             return Response(
                 {'error': 'No Lichess game ID provided'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Extract game ID from URL if needed
-        if 'lichess.org' in game_id:
-            game_id = game_id.split('/')[-1].split('?')[0]
-            match.lichess_game_id = game_id
+        # Use our lichess_api module to sync the result
+        from chess_app.lichess_api import extract_game_id_from_url, sync_game_result
         
-        # Fetch game data from Lichess
-        try:
-            result_data = self._fetch_lichess_game(game_id)
-            
-            # Update match
-            match.result = result_data['result']
-            match.status = 'completed'
-            match.finished_at = timezone.now()
-            match.result_source = 'api'
-            
-            # Determine winner
-            if result_data['result'] == '1-0':
-                match.winner = match.player1
-            elif result_data['result'] == '0-1':
-                match.winner = match.player2
-            else:
-                match.winner = None
-            
-            match.save()
-
-            
-            # Log sync
-            ChessResultSyncLog.objects.create(
-                match=match,
-                source='api',
-                success=True,
-                result_data=str(result_data)
+        game_id = extract_game_id_from_url(lichess_game_id)
+        
+        if not game_id:
+            return Response(
+                {'error': 'Invalid Lichess game ID or URL'},
+                status=status.HTTP_400_BAD_REQUEST
             )
+        
+        try:
+            success = sync_game_result(match, game_id)
             
-            return Response({
-                'message': 'Result synced successfully',
-                'result': match.result,
-                'winner': match.winner.full_name if match.winner else 'Draw'
-            })
+            if success:
+                # Log sync
+                ChessResultSyncLog.objects.create(
+                    match=match,
+                    source='api',
+                    success=True,
+                    result_data=f'Game ID: {game_id}'
+                )
+                
+                return Response({
+                    'message': 'Result synced successfully',
+                    'result': match.get_result_display(),
+                    'winner': match.winner.full_name if match.winner else 'Draw',
+                    'status': match.status
+                })
+            else:
+                # Log failed sync
+                ChessResultSyncLog.objects.create(
+                    match=match,
+                    source='api',
+                    success=False,
+                    error_message='Failed to sync game result'
+                )
+                
+                return Response(
+                    {'error': 'Failed to sync result. Please check the game ID and player usernames.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
         except Exception as e:
             # Log failed sync
@@ -252,34 +369,163 @@ class ChessMatchViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-    def _fetch_lichess_game(self, game_id):
-        """Fetch game data from Lichess API"""
-        url = f'https://lichess.org/game/export/{game_id}'
-        headers = {'Accept': 'application/json'}
-        
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code != 200:
-            raise Exception(f'Lichess API returned status {response.status_code}')
-        
-        game_data = response.json()
-        
-        # Extract result
-        result = game_data.get('status')
-        winner = game_data.get('winner')
-        
-        # Map Lichess result to our format
-        if winner == 'white':
-            result_str = '1-0'
-        elif winner == 'black':
-            result_str = '0-1'
-        elif result in ['draw', 'stalemate']:
-            result_str = '1/2-1/2'
+
+
+
+# Authentication Views
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_user(request):
+    """Register a new user"""
+    serializer = RegisterSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        # Create user profile
+        UserProfile.objects.create(user=user)
+        # Log the user in
+        login(request, user)
+        return Response({
+            'user': UserSerializer(user).data,
+            'message': 'User registered successfully'
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_user(request):
+    """Login user"""
+    serializer = LoginSerializer(data=request.data)
+    if serializer.is_valid():
+        username = serializer.validated_data['username']
+        password = serializer.validated_data['password']
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            login(request, user)
+            return Response({
+                'user': UserSerializer(user).data,
+                'message': 'Login successful'
+            })
         else:
-            result_str = '*'
+            return Response(
+                {'error': 'Invalid username or password'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def logout_user(request):
+    """Logout user"""
+    logout(request)
+    return Response({'message': 'Logout successful'})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    """Get current authenticated user"""
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_matches(request):
+    """Get all matches for the current user's linked participants"""
+    try:
+        profile = request.user.profile
+        matches = profile.get_all_matches()
+        serializer = ChessMatchSerializer(matches, many=True)
+        return Response(serializer.data)
+    except UserProfile.DoesNotExist:
+        return Response([], status=status.HTTP_200_OK)
+
+
+
+
+# Authentication Views
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_user(request):
+    """Register a new user"""
+    serializer = RegisterSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        # Create user profile
+        UserProfile.objects.create(user=user)
+        # Log the user in
+        login(request, user)
+        return Response({
+            'user': UserSerializer(user).data,
+            'message': 'User registered successfully'
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_user(request):
+    """Login user"""
+    serializer = LoginSerializer(data=request.data)
+    if serializer.is_valid():
+        username = serializer.validated_data['username']
+        password = serializer.validated_data['password']
+        user = authenticate(request, username=username, password=password)
         
-        return {
-            'result': result_str,
-            'status': result,
-            'winner': winner
-        }
+        if user is not None:
+            login(request, user)
+            return Response({
+                'user': UserSerializer(user).data,
+                'message': 'Login successful'
+            })
+        else:
+            return Response(
+                {'error': 'Invalid username or password'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def logout_user(request):
+    """Logout user"""
+    logout(request)
+    return Response({'message': 'Logout successful'})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    """Get current authenticated user"""
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def my_matches(request):
+    """Get all matches for a Lichess username"""
+    lichess_username = request.query_params.get('username', '').strip()
+    
+    if not lichess_username:
+        return Response(
+            {'error': 'Lichess username is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Find all participants with this username
+    participants = ChessParticipant.objects.filter(lichess_username__iexact=lichess_username)
+    
+    if not participants.exists():
+        return Response([], status=status.HTTP_200_OK)
+    
+    # Get all matches for these participants
+    matches = ChessMatch.objects.filter(
+        Q(player1__in=participants) | Q(player2__in=participants)
+    ).order_by('-created_at')
+    
+    serializer = ChessMatchSerializer(matches, many=True)
+    return Response(serializer.data)

@@ -1,0 +1,66 @@
+{% extends "chess_app/base.html" %}
+
+{% block title %}Participant List - Kompetitions Chess{% endblock %}
+
+{% block content %}
+<div class="filter-form">
+    <h2>Filter Participants</h2>
+    <form method="get" action="{% url 'participant_list' %}">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="competition">Competition</label>
+                <select name="competition" id="competition">
+                    <option value="">All Competitions</option>
+                    {% for comp in competitions %}
+                        <option value="{{ comp.id }}" {% if filters.competition == comp.id|stringformat:"s" %}selected{% endif %}>
+                            {{ comp.title }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="username">Lichess Username</label>
+                <input type="text" name="username" id="username" value="{{ filters.username|default:'' }}" placeholder="Search by username...">
+            </div>
+        </div>
+        <div style="margin-top: 15px;">
+            <button type="submit" class="btn">Apply Filters</button>
+            <a href="{% url 'participant_list' %}" class="btn btn-secondary">Clear Filters</a>
+        </div>
+    </form>
+</div>
+
+<div class="stats-bar">
+    <div class="count">Total Participants: {{ total_count }}</div>
+</div>
+
+{% if participants %}
+<table>
+    <thead>
+        <tr>
+            <th>Lichess Username</th>
+            <th>Full Name</th>
+            <th>Competition</th>
+            <th>Join Date</th>
+            <th>Match Count</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for participant in participants %}
+        <tr onclick="window.location.href='{% url 'participant_history' participant.id %}'">
+            <td>{{ participant.lichess_username }}</td>
+            <td>{{ participant.full_name }}</td>
+            <td>{{ participant.competition.title }}</td>
+            <td>{{ participant.registered_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ participant.match_count }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <h3>No Participants Found</h3>
+    <p>Try adjusting your filters or check back later.</p>
+</div>
+{% endif %}
+{% endblock %}

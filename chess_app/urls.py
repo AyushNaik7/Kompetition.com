@@ -2,13 +2,33 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('', views.competition_list, name='competition_list'),
+    # API Root
+    path('', views.api_root, name='api_root'),
+    
+    # Competition URLs
     path('competitions/', views.competition_list, name='competition_list'),
-    path('competitions/create/', views.competition_create, name='competition_create'),
     path('competitions/<slug:slug>/', views.competition_detail, name='competition_detail'),
-    path('competitions/<slug:slug>/edit/', views.competition_edit, name='competition_edit'),
-    path('competitions/<slug:slug>/register/', views.participant_register, name='participant_register'),
-    path('competitions/<slug:slug>/matches/create/', views.match_create, name='match_create'),
-    path('competitions/<slug:slug>/leaderboard/', views.leaderboard, name='leaderboard'),
-    path('matches/<int:pk>/', views.match_detail, name='match_detail'),
+    path('competitions/<slug:slug>/bracket/', views.knockout_bracket, name='knockout_bracket'),
+    path('competitions/<slug:slug>/swiss-pair/', views.swiss_pairing, name='swiss_pairing'),
+    
+    # Participant Management (Admin)
+    path('participants/', views.participant_list, name='participant_list'),
+    path('participants/<int:participant_id>/history/', views.participant_history, name='participant_history'),
+    
+    # Match Management (Admin)
+    path('matches/', views.match_list, name='match_list'),
+    
+    # Audit Log (Admin)
+    path('audit-log/', views.audit_log_list, name='audit_log_list'),
+    
+    # Public Pages
+    path('my-matches/', views.my_matches, name='my_matches'),
+    
+    # Authentication URLs
+    path('accounts/register/', views.register, name='register'),
+    path('accounts/login/', views.user_login, name='login'),
+    path('accounts/logout/', views.user_logout, name='logout'),
+    path('accounts/dashboard/', views.dashboard, name='dashboard'),
+    path('accounts/link-participant/', views.link_participant, name='link_participant'),
+    path('accounts/unlink-participant/<int:participant_id>/', views.unlink_participant, name='unlink_participant'),
 ]

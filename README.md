@@ -1,298 +1,381 @@
-# Mini Chess Competition Module - Lichess Integration
+# Kompetitions - Chess Competition Management Platform
 
-## Overview
-A Django-based chess competition platform that integrates with Lichess for gameplay and result tracking.
+A comprehensive Django-based chess competition management system with Lichess integration, featuring Swiss-style pairing, knockout brackets, participant management, and audit logging.
 
-## Features
-- Competition management (create, edit, list)
-- Participant registration with validation
-- Match creation and pairing
-- Lichess integration for game results
-- Automated leaderboard generation
-- Anti-abuse controls
+## 🚀 Features
 
-## Technology Stack
+### Core Features
+- **Competition Management**: Create and manage chess tournaments
+- **Participant Registration**: Easy registration with Lichess username
+- **Match Tracking**: Automatic result syncing from Lichess
+- **Leaderboards**: Real-time standings and statistics
+
+### Advanced Features (v2.0)
+- **Swiss-Style Pairing**: Automatic pairing algorithm with rematch prevention
+- **Knockout Brackets**: Visual tournament bracket display
+- **Participant Management**: Admin views for participant tracking
+- **Match History**: Detailed match history per participant
+- **My Matches**: Public page for participants to view their matches
+- **Audit Logging**: Complete tracking of admin actions
+- **User Authentication**: Full registration and login system
+- **Participant Linking**: Link Lichess usernames to user accounts
+
+## 📋 Requirements
+
 - Python 3.8+
-- Django 4.2+
-- SQLite (default) / PostgreSQL
-- Django REST Framework
-- Lichess API integration
+- PostgreSQL 12+
+- Node.js 18+ (for frontend)
+- Lichess Personal API Token
 
-## Lichess Integration Method
+## 🔧 Installation
 
-**Selected Approach: Lichess API Based Flow (Option B)**
+### 1. Clone the Repository
 
-### Why This Approach?
-1. **Automated Result Fetching**: Can automatically pull game results from Lichess API
-2. **Real-time Updates**: Can sync results as games complete
-3. **Data Integrity**: Direct API access ensures accurate game data
-4. **Scalability**: Can handle multiple concurrent matches
-
-### How It Works
-1. Admin creates a match and provides Lichess game ID or URL
-2. System stores the game ID in the match record
-3. Result sync endpoint fetches game data from Lichess API (`https://lichess.org/game/export/{gameId}`)
-4. System parses PGN data to extract winner and result
-5. Match status and leaderboard are automatically updated
-
-### Limitations
-- Requires valid Lichess game ID
-- Depends on Lichess API availability
-- Rate limits apply (though generous for this use case)
-- Games must be completed on Lichess platform
-- No real-time game state tracking (only final results)
-
-## Setup Instructions
-
-### 1. Clone Repository
 ```bash
-git clone <repository-url>
-cd chess-competition
+git clone https://github.com/yourusername/kompetitions.git
+cd kompetitions
 ```
 
-### 2. Create Virtual Environment
+### 2. Set Up Python Environment
+
 ```bash
+# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
 
-### 3. Install Dependencies
-```bash
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On Linux/Mac:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 4. Run Migrations
+### 3. Set Up Database
+
+```bash
+# Create PostgreSQL database
+createdb kompetitions_db
+
+# Or using psql:
+psql -U postgres
+CREATE DATABASE kompetitions_db;
+\q
+```
+
+### 4. Configure Environment Variables
+
+```bash
+# Copy example environment file
+cp .env.example .env
+
+# Edit .env with your values
+nano .env
+```
+
+Required environment variables:
+```bash
+DJANGO_SECRET_KEY=<generate-new-key>
+DEBUG=True  # Set to False in production
+DB_PASSWORD=<your-db-password>
+LICHESS_API_TOKEN=<your-lichess-token>
+ALLOWED_HOSTS=localhost,127.0.0.1
+```
+
+Generate SECRET_KEY:
+```bash
+python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
+```
+
+Get Lichess API Token:
+1. Visit https://lichess.org/account/oauth/token
+2. Create new personal access token
+3. Copy token to .env file
+
+### 5. Run Migrations
+
 ```bash
 python manage.py migrate
 ```
 
-### 5. Create Superuser
+### 6. Create Superuser
+
 ```bash
 python manage.py createsuperuser
 ```
 
-### 6. Load Sample Data (Optional)
-```bash
-python manage.py loaddata sample_data.json
-```
-
 ### 7. Run Development Server
+
 ```bash
+# Backend (Django)
 python manage.py runserver
+
+# Frontend (Next.js) - in separate terminal
+cd frontend
+npm install
+npm run dev
 ```
 
-Access the application at `http://localhost:8000`
+Access the application:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- Admin Panel: http://localhost:8000/admin
 
-## Project Structure
+## 🏗️ Project Structure
+
 ```
-chess-competition/
-├── chess_app/                    # Main application
-│   ├── models.py                # Data models
-│   ├── views.py                 # Web views
-│   ├── api_views.py             # REST API endpoints
-│   ├── serializers.py           # API serializers
-│   ├── forms.py                 # Django forms
-│   ├── admin.py                 # Admin interface
-│   ├── urls.py                  # Web URLs
-│   ├── api_urls.py              # API URLs
-│   ├── migrations/              # Database migrations
-│   └── templates/               # HTML templates
-│       ├── base.html
-│       └── chess_app/
-├── chess_competition/           # Project settings
-│   ├── settings.py
-│   ├── urls.py
-│   └── wsgi.py
-├── Documentation/
-│   ├── README.md               # This file
-│   ├── QUICKSTART.md           # Quick setup guide
-│   ├── PROJECT_SUMMARY.md      # Feature overview
-│   ├── SUBMISSION.md           # Submission summary
-│   ├── IMPLEMENTATION_NOTES.md # Design decisions
-│   ├── ARCHITECTURE.md         # System architecture
-│   ├── API_DOCUMENTATION.md    # API reference
-│   ├── TESTING.md              # Testing guide
-│   ├── TROUBLESHOOTING.md      # Common issues
-│   ├── SCREENSHOTS.md          # UI guide
-│   ├── INDEX.md                # Documentation index
-│   └── CHANGELOG.md            # Version history
-├── Scripts/
-│   ├── setup.sh                # Linux/Mac setup
-│   ├── setup.bat               # Windows setup
-│   ├── test_api.py             # API testing
-│   └── create_demo_data.py     # Demo data
-├── manage.py                   # Django management
-├── requirements.txt            # Dependencies
-├── .gitignore                  # Git ignore
-└── LICENSE                     # MIT License
+kompetitions/
+├── chess_app/              # Main Django app
+│   ├── models.py          # Database models
+│   ├── views.py           # View functions
+│   ├── api_views.py       # REST API views
+│   ├── serializers.py     # DRF serializers
+│   ├── urls.py            # URL routing
+│   ├── middleware.py      # Custom middleware
+│   ├── swiss_pairing.py   # Swiss pairing algorithm
+│   ├── utils.py           # Utility functions
+│   ├── lichess_api.py     # Lichess integration
+│   └── templates/         # HTML templates
+├── chess_competition/      # Django project settings
+│   ├── settings.py        # Development settings
+│   ├── settings_production.py  # Production settings
+│   ├── urls.py            # Main URL configuration
+│   └── wsgi.py            # WSGI configuration
+├── frontend/              # Next.js frontend
+│   ├── app/               # Next.js app directory
+│   ├── components/        # React components
+│   └── lib/               # Utility functions
+├── .env.example           # Environment template
+├── requirements.txt       # Python dependencies
+├── manage.py              # Django management script
+├── DEPLOYMENT_GUIDE.md    # Production deployment guide
+├── SECURITY_CHECKLIST.md  # Security best practices
+└── PRODUCTION_READY.md    # Production readiness status
 ```
 
-## Anti-Abuse Controls Implemented
+## 🔐 Security
 
-### 1. Duplicate Registration Prevention
-- Database unique constraint on (competition, email)
-- Form validation prevents same participant registering twice
-- Clear error message shown to user
+### Before Deployment
 
-### 2. Self-Pairing Prevention
-- Validation ensures Player 1 ≠ Player 2
-- Enforced at model and form level
-- Admin cannot create invalid matches
+1. **Generate New Secrets**
+   ```bash
+   # Generate Django SECRET_KEY
+   python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
+   
+   # Generate new Lichess API token
+   # Visit: https://lichess.org/account/oauth/token
+   ```
 
-### 3. Duplicate Game ID Prevention
-- Unique constraint on Lichess game ID per competition
-- Prevents same game from being counted multiple times
-- Validation in result sync endpoint
+2. **Run Security Checks**
+   ```bash
+   # Make script executable
+   chmod +x pre_push_checklist.sh
+   
+   # Run security checks
+   ./pre_push_checklist.sh
+   ```
 
-### 4. Match Result Locking
-- Completed matches cannot be edited without admin override
-- Status transition validation (pending → active → completed)
-- Audit trail for manual overrides
+3. **Review Security Checklist**
+   - Read `SECURITY_CHECKLIST.md` for comprehensive security guide
+   - Ensure all environment variables are set
+   - Verify DEBUG=False in production
+   - Configure HTTPS/SSL
 
-### 5. Time Window Validation
-- Registration only allowed during competition active period
-- Competition must be active (is_active=True)
-- Start/end time validation
+### Security Features
 
-### 6. Result Source Tracking
-- Every result sync logs source (API/Manual/PGN)
-- Timestamp tracking for all result updates
-- Admin can see result history
+- ✅ Environment-based configuration
+- ✅ CSRF protection
+- ✅ SQL injection prevention (Django ORM)
+- ✅ XSS prevention (Django templates)
+- ✅ Password hashing (Django default)
+- ✅ Session security
+- ✅ Audit logging for admin actions
+- ✅ Admin-only access controls
+- ✅ HTTPS/SSL support (production)
 
-## API Endpoints
+## 📚 Documentation
 
-### Competitions
-- `GET /api/chess/competitions/active/` - List active competitions
-- `POST /api/chess/competitions/` - Create competition (admin)
-- `GET /api/chess/competitions/{id}/` - Competition details
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Step-by-step production deployment
+- **[SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)** - Security best practices
+- **[PRODUCTION_READY.md](PRODUCTION_READY.md)** - Production readiness status
+- **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)** - API endpoints documentation
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture overview
+- **[FEATURES_CHECKLIST.md](FEATURES_CHECKLIST.md)** - Feature implementation status
 
-### Registration
-- `POST /api/chess/competitions/{id}/register/` - Register participant
-- `GET /api/chess/competitions/{id}/participants/` - List participants
+## 🎮 Usage
 
-### Matches
-- `POST /api/chess/competitions/{id}/matches/create/` - Create match (admin)
-- `GET /api/chess/competitions/{id}/matches/` - List matches
-- `POST /api/chess/matches/{id}/sync-result/` - Sync result from Lichess
+### Admin Features
 
-### Leaderboard
-- `GET /api/chess/competitions/{id}/leaderboard/` - Get leaderboard
+1. **Create Competition**
+   - Log in to admin panel
+   - Create new competition with details
+   - Set tournament type (Swiss/Knockout/Round Robin)
 
-## Admin Pages
-- `/admin/` - Django admin interface
-- `/competitions/` - Competition list
-- `/competitions/create/` - Create competition
-- `/competitions/{id}/` - Competition detail
-- `/competitions/{id}/participants/` - Participant list
-- `/competitions/{id}/matches/` - Match list
-- `/competitions/{id}/matches/create/` - Create match
-- `/competitions/{id}/leaderboard/` - Leaderboard
+2. **Manage Participants**
+   - View all participants across competitions
+   - Filter by competition or username
+   - View match history for each participant
 
-## Participant Pages
-- `/register/{slug}/` - Competition registration
-- `/my-matches/` - My matches (requires login)
-- `/matches/{id}/` - Match detail
-- `/competitions/{id}/standings/` - Standings/leaderboard
+3. **Generate Swiss Pairings**
+   - Navigate to competition detail
+   - Click "Generate Swiss Pairings"
+   - Review and confirm pairings
 
-## Business Rules Implemented
+4. **View Audit Log**
+   - Access audit log from admin menu
+   - Filter by admin, action type, or date
+   - Review all administrative actions
 
-1. ✅ Participant cannot register twice in same competition
-2. ✅ Competition must be active and within time window
-3. ✅ Only registered participants can be paired
-4. ✅ Match result updates leaderboard correctly
-5. ✅ Completed match cannot be edited without admin action
-6. ✅ Invalid/missing Lichess data handled safely
-7. ✅ Duplicate game mapping prevented
+### User Features
 
-## Leaderboard Logic
+1. **Register Account**
+   - Click "Register" in navigation
+   - Create account with username/email/password
+   - Automatically logged in after registration
 
-### Points System
-- Win: 1 point
-- Draw: 0.5 points
-- Loss: 0 points
+2. **Link Lichess Username**
+   - Log in to your account
+   - Go to "Link Participant"
+   - Enter your Lichess username
+   - View all your matches in dashboard
 
-### Ranking Tie-breaks (in order)
-1. Total points (higher is better)
-2. Number of wins (higher is better)
-3. Earlier registration time (earlier is better)
+3. **View My Matches (Public)**
+   - No login required
+   - Enter Lichess username
+   - View all matches across competitions
+   - See statistics (wins, losses, draws)
 
-## Assumptions Made
+## 🧪 Testing
 
-1. **Authentication**: Basic Django authentication used; can be extended to OAuth
-2. **Lichess Usernames**: Assumed to be valid; no real-time verification
-3. **Time Control Format**: Stored as string (e.g., "3+2", "5+0")
-4. **Match Type**: Currently only supports 1v1; can extend to team matches
-5. **Round Robin**: Manual pairing by admin; automatic pairing is bonus feature
-6. **Game Creation**: Games are created on Lichess separately; we only track results
-7. **API Rate Limits**: Assumed reasonable usage; no rate limiting implemented
-8. **Timezone**: All times in UTC; can be extended for user timezones
+### Manual Testing
 
-## Future Extensions for Tournaments
+```bash
+# Run development server
+python manage.py runserver
 
-### Swiss-Style Pairing
-- Implement Swiss pairing algorithm
-- Automatic opponent matching based on points
-- Prevent repeat pairings
+# Test features:
+# 1. User registration and login
+# 2. Participant linking
+# 3. Swiss pairing generation
+# 4. Match list filtering
+# 5. Audit log viewing
+# 6. My matches search
+```
 
-### Knockout Brackets
-- Single/double elimination support
-- Bracket visualization
-- Automatic advancement logic
+### Security Testing
 
-### Automatic Pairing
-- Queue-based pairing system
-- Real-time match creation
-- Player availability tracking
+```bash
+# Install security tools
+pip install safety bandit
 
-### Enhanced Features
-- Email notifications
-- Live game embedding
-- PGN viewer with board visualization
-- Player rating tracking
-- Match chat/comments
-- Tournament director tools
+# Check for vulnerable dependencies
+safety check
 
-## Testing
+# Check for security issues
+bandit -r chess_app/ chess_competition/
 
-### Manual Testing Steps
-1. Create competition as admin
-2. Register 4+ participants
-3. Create matches between participants
-4. Add Lichess game IDs (use real completed games)
-5. Sync results via API or admin
-6. Verify leaderboard updates correctly
-7. Test duplicate registration prevention
-8. Test time window validation
+# Django security check
+python manage.py check --deploy
+```
 
-### Sample Lichess Game IDs for Testing
-- `dKbV8Oba` - White wins
-- `q7ZvsdUF` - Black wins
-- `GpYhZPz3` - Draw
+## 🚀 Deployment
 
-Use format: `https://lichess.org/{gameId}` or just the game ID
+### Quick Deployment
 
-## Known Limitations
+1. **Prepare Environment**
+   ```bash
+   # Set production environment variables
+   export DEBUG=False
+   export DJANGO_SECRET_KEY=<production-key>
+   export DB_PASSWORD=<production-password>
+   export LICHESS_API_TOKEN=<production-token>
+   export ALLOWED_HOSTS=yourdomain.com
+   ```
 
-1. **No Real-time Game Creation**: Games must be created on Lichess manually
-2. **No Live Updates**: Results must be manually synced (can add webhooks)
-3. **Basic UI**: Functional but minimal styling
-4. **No Player Verification**: Lichess usernames not verified against actual accounts
-5. **Manual Pairing**: Admin must create matches manually
-6. **Single Competition Type**: Only 1v1 supported currently
-7. **No Undo**: Match results cannot be easily reverted once synced
+2. **Run Migrations**
+   ```bash
+   python manage.py migrate --settings=chess_competition.settings_production
+   ```
 
-## License Considerations
+3. **Collect Static Files**
+   ```bash
+   python manage.py collectstatic --settings=chess_competition.settings_production
+   ```
 
-- Django: BSD License
-- Lichess API: Free to use, no authentication required for public games
-- No Lichess code directly reused; only API integration
-- All custom code is original implementation
+4. **Start Gunicorn**
+   ```bash
+   gunicorn chess_competition.wsgi:application --bind 0.0.0.0:8000
+   ```
 
-## Support & Questions
+For detailed deployment instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
 
-For issues or questions about implementation decisions, please refer to code comments or contact the developer.
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+### Development Guidelines
+
+- Follow PEP 8 style guide
+- Write descriptive commit messages
+- Add tests for new features
+- Update documentation
+- Run security checks before committing
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Django](https://www.djangoproject.com/) - Web framework
+- [Django REST Framework](https://www.django-rest-framework.org/) - API framework
+- [Lichess](https://lichess.org/) - Chess platform and API
+- [Next.js](https://nextjs.org/) - Frontend framework
+- [PostgreSQL](https://www.postgresql.org/) - Database
+
+## 📞 Support
+
+For issues, questions, or contributions:
+- Open an issue on GitHub
+- Check existing documentation
+- Review security checklist for security concerns
+
+## 🗺️ Roadmap
+
+### Completed ✅
+- [x] Basic competition management
+- [x] Lichess integration
+- [x] Swiss-style pairing
+- [x] Knockout brackets
+- [x] Participant management
+- [x] Audit logging
+- [x] User authentication
+- [x] Match history tracking
+
+### Planned 🚧
+- [ ] Email notifications
+- [ ] Real-time updates (WebSockets)
+- [ ] Mobile app
+- [ ] Advanced statistics
+- [ ] Tournament templates
+- [ ] Multi-language support
+- [ ] Payment integration
+- [ ] Live streaming integration
+
+## 📊 Status
+
+- **Version**: 2.0.0
+- **Status**: Production Ready ✅
+- **Last Updated**: 2024
+- **Security**: Hardened ✅
+- **Documentation**: Complete ✅
+- **Tests**: Manual testing required
 
 ---
 
-**Development Time**: ~6-8 hours
-**Focus**: Working flow, correct business logic, clean implementation
+**Made with ♟️ by the Kompetitions Team**
